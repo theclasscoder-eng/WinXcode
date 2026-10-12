@@ -1,5 +1,5 @@
 ---
-name: 🐛 Bug report
+name: Bug report
 about: Something in winx or winxcode does not work as expected
 title: "[Bug]: "
 labels: bug, needs-triage

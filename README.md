@@ -12,7 +12,7 @@
 [![CMake](https://img.shields.io/badge/CMake-3.25%2B-064F8C?logo=cmake&logoColor=white)](CMakePresets.json)
 [![Swift](https://img.shields.io/badge/Swift-6.4%2B-F05138?logo=swift&logoColor=white)](https://www.swift.org/install/windows/)
 [![Version](https://img.shields.io/badge/version-0.1.0-blue)](CMakeLists.txt)
-[![License](https://img.shields.io/badge/license-TBD-lightgrey)](#license)
+[![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen)](CONTRIBUTING.md)
 
 [Quick start](#quick-start) · [Commands](#commands) · [Sign-in modes](#two-ways-to-sign-in) · [Roadmap](#roadmap) · [Contributing](CONTRIBUTING.md)
@@ -31,15 +31,15 @@ virtual machine or POSIX layer.
 
 ## Key features
 
-- 🪟 **100% native Windows.** Written in C++20 with MSVC. It runs without WSL, Cygwin or a VM.
-- 📱 **One-command dev loop.** `winx dev` builds, signs and installs on the attached iPhone.
-- 🔏 **Built-in code signing.** It signs `.app` bundles and Mach-O binaries, verifies signatures and supports ad-hoc signing.
-- 🔑 **Two sign-in modes.** Use an official App Store Connect API key, or an Apple ID with a free account.
-- 🧰 **Automatic provisioning.** `winx ds provision` registers the device and creates the bundle ID, certificate and profile.
-- 📦 **iOS SDK from your own Xcode.** `winx sdk install Xcode.xip` builds the SDK bundle from your copy of Xcode.
-- 🔌 **Direct device access.** It handles usbmux, lockdown and pairing records, and can list apps, stream the live device log and toggle Developer Mode.
-- 🖥️ **Lightweight IDE.** `winxcode.exe` is a Dear ImGui editor with Swift syntax highlighting and a Run button.
-- 🔐 **Secure key storage.** `.p8` keys go into the Windows key store as non-exportable, and passwords are never saved.
+- **100% native Windows.** Written in C++20 with MSVC. It runs without WSL, Cygwin or a VM.
+- **One-command dev loop.** `winx dev` builds, signs and installs on the attached iPhone.
+- **Built-in code signing.** It signs `.app` bundles and Mach-O binaries, verifies signatures and supports ad-hoc signing.
+- **Two sign-in modes.** Use an official App Store Connect API key, or an Apple ID with a free account.
+- **Automatic provisioning.** `winx ds provision` registers the device and creates the bundle ID, certificate and profile.
+- **iOS SDK from your own Xcode.** `winx sdk install Xcode.xip` builds the SDK bundle from your copy of Xcode.
+- **Direct device access.** It handles usbmux, lockdown and pairing records, and can list apps, stream the live device log and toggle Developer Mode.
+- **Lightweight IDE.** `winxcode.exe` is a Dear ImGui editor with Swift syntax highlighting and a Run button.
+- **Secure key storage.** `.p8` keys go into the Windows key store as non-exportable, and passwords are never saved.
 
 ## Requirements
 
@@ -104,8 +104,8 @@ You can also open the folder in the IDE with `winxcode.exe Hello` and press **Ru
 
 | Mode | Flag | Account | Status |
 |---|---|---|---|
-| **App Store Connect API key** | `--mode key` | Paid Apple Developer Program | ✅ Apple's documented API. The `.p8` key is stored as non-exportable in the Windows key store. |
-| **Apple ID and password** | `--mode password` | Free or paid | ⚠️ Unofficial. It uses the protocol Xcode uses, reconstructed by third parties as in xtool. |
+| **App Store Connect API key** | `--mode key` | Paid Apple Developer Program | Apple's documented API. The `.p8` key is stored as non-exportable in the Windows key store. |
+| **Apple ID and password** | `--mode password` | Free or paid | Unofficial. It uses the protocol Xcode uses, reconstructed by third parties as in xtool. |
 
 > [!WARNING]
 > Apple does not sanction **Apple ID sign-in**. It depends on a third-party "anisette" server for
@@ -151,8 +151,7 @@ labelled [`good first issue`](https://github.com/theclasscoder-eng/WinXcode/labe
 
 ## License
 
-<!-- TODO: add a LICENSE file (e.g. MIT or Apache-2.0) and update the badge above. -->
-WinXcode does not have a license yet. Until a `LICENSE` file is added, all rights are reserved.
+WinXcode is released under the [MIT License](LICENSE). Contributions are accepted under the same license.
 
 ## Acknowledgements
 

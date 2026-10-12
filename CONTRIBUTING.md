@@ -3,7 +3,7 @@
 Thanks for helping make iOS development on Windows possible. This guide covers reporting bugs,
 suggesting features and getting a pull request merged.
 
-## 🌱 New here? Start with a good first issue
+## New here? Start with a good first issue
 
 Issues labelled [`good first issue`](https://github.com/theclasscoder-eng/WinXcode/labels/good%20first%20issue)
 are small and well scoped, and each one says which files to change. To claim one, comment on the
@@ -11,7 +11,7 @@ issue so nobody else starts the same work. If you get stuck, ask on the issue.
 
 Other useful labels: `help wanted`, `bug`, `enhancement`, `docs`, `device-transport`, `codesign`, `auth`, `ide`.
 
-## 🐛 Reporting bugs
+## Reporting bugs
 
 1. Search [existing issues](https://github.com/theclasscoder-eng/WinXcode/issues) to check that the bug has not been reported yet.
 2. Open a new issue using the **Bug report** template.
@@ -24,7 +24,7 @@ Other useful labels: `help wanted`, `bug`, `enhancement`, `docs`, `device-transp
 For security vulnerabilities, do **not** open a public issue. Contact the maintainers privately
 through [GitHub Security Advisories](https://github.com/theclasscoder-eng/WinXcode/security/advisories/new).
 
-## 💡 Suggesting features
+## Suggesting features
 
 Open an issue labelled `enhancement` that describes:
 
@@ -34,7 +34,7 @@ Open an issue labelled `enhancement` that describes:
 
 Check the [Roadmap](README.md#roadmap) first, because the feature may already be planned.
 
-## 🛠️ Development setup
+## Development setup
 
 Requirements: Windows 10/11 x64 and Visual Studio 2022 with **Desktop development with C++**.
 Swift for Windows, an iPhone and an Apple account are only needed for end-to-end testing. The unit
@@ -48,7 +48,7 @@ cmake --build build --config Debug
 ctest --test-dir build -C Debug --output-on-failure
 ```
 
-## 🔀 Submitting a pull request
+## Submitting a pull request
 
 1. Fork the repository and create a branch from `main`, such as `fix/usbmux-timeout` or `feat/wifi-devices`.
 2. Keep each PR focused on one change. Small PRs get reviewed sooner.
@@ -66,6 +66,10 @@ ctest --test-dir build -C Debug --output-on-failure
 Write short, imperative subject lines, for example `Add Wi-Fi device discovery` or
 `Fix lockdown TLS handshake on reconnect`. Use the body to explain why the change is needed.
 
-## 🤝 Code of conduct
+## Code of conduct
 
 Be respectful, patient and constructive. Harassment and personal attacks are not tolerated.
+
+## License
+
+By contributing, you agree that your contributions are licensed under the [MIT License](LICENSE).
