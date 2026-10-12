@@ -2,7 +2,7 @@
 
 Paste these into **Settings → General** (the social preview) and the repository's **About** panel (⚙️ next to "About").
 
-## About description (148 chars)
+## About description (under 160 chars)
 
 ```
 🪟📱 Build, sign & install iOS apps natively on Windows. No Mac, WSL or VM. Swift toolchain, code signing & IDE in C++20 ⚡
