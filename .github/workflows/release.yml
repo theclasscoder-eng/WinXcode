@@ -1,0 +1,59 @@
+name: Release
+
+# Push a tag that matches the version in CMakeLists.txt, e.g. `git tag v0.1.0`.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build and publish
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check the tag against the project version
+        id: version
+        shell: pwsh
+        run: |
+          $match = Select-String -Path CMakeLists.txt -Pattern '^\s+VERSION (\d+\.\d+\.\d+)' | Select-Object -First 1
+          $version = $match.Matches[0].Groups[1].Value
+          if ("v$version" -ne "${{ github.ref_name }}") {
+            throw "Tag ${{ github.ref_name }} does not match project version $version in CMakeLists.txt"
+          }
+          "version=$version" >> $env:GITHUB_OUTPUT
+
+      - name: Configure
+        run: cmake --preset vs2022-x64
+
+      - name: Build
+        run: cmake --build build --config Release --parallel
+
+      - name: Test
+        run: ctest --test-dir build -C Release --output-on-failure
+
+      - name: Package
+        working-directory: build
+        run: cpack -C Release
+
+      - name: Write Scoop and winget manifests
+        run: >
+          python packaging/make_manifests.py
+          --version ${{ steps.version.outputs.version }}
+          --zip build/WinXcode-${{ steps.version.outputs.version }}-win-x64.zip
+          --out build/manifests
+
+      - name: Publish the release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $version = "${{ steps.version.outputs.version }}"
+          Compress-Archive -Path build/manifests/winget/* -DestinationPath build/winget-manifests-$version.zip
+          gh release create "${{ github.ref_name }}" --title "WinXcode $version" --generate-notes `
+            "build/WinXcode-$version-win-x64.zip" `
+            build/manifests/winxcode.json `
+            "build/winget-manifests-$version.zip"

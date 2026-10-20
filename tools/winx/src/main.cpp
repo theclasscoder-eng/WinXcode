@@ -14,6 +14,7 @@ int main(int argc, char** argv) {
     CLI::App app{"WinXcode: build, sign and install iOS apps from Windows"};
     argv = app.ensure_utf8(argv);
     app.require_subcommand(1);
+    app.set_version_flag("--version", "winx " WINX_VERSION);
 
     // ---- devices ----
     winx::cli::DevicesOptions devices_options;

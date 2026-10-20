@@ -46,3 +46,23 @@ if(WINX_BUILD_TESTS)
     enable_testing()
     add_subdirectory(tests)
 endif()
+
+# Release package: `cpack -C Release` in the build directory writes
+# WinXcode-<version>-win-x64.zip with the three programs, the MSVC runtime
+# DLLs they need, and the license. Dependencies' own install rules are left
+# out by installing only the "app" component.
+install(TARGETS winx winxcode winx-ld64-shim RUNTIME DESTINATION . COMPONENT app)
+install(FILES LICENSE README.md DESTINATION . COMPONENT app)
+set(CMAKE_INSTALL_SYSTEM_RUNTIME_DESTINATION .)
+set(CMAKE_INSTALL_SYSTEM_RUNTIME_COMPONENT app)
+include(InstallRequiredSystemLibraries)
+
+set(CPACK_GENERATOR ZIP)
+set(CPACK_PACKAGE_NAME WinXcode)
+set(CPACK_PACKAGE_VENDOR "WinXcode contributors")
+set(CPACK_PACKAGE_FILE_NAME "WinXcode-${PROJECT_VERSION}-win-x64")
+set(CPACK_INCLUDE_TOPLEVEL_DIRECTORY OFF)
+set(CPACK_ARCHIVE_COMPONENT_INSTALL ON)
+set(CPACK_COMPONENTS_ALL app)
+set(CPACK_COMPONENTS_GROUPING ALL_COMPONENTS_IN_ONE)
+include(CPack)

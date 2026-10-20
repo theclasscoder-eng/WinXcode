@@ -7,6 +7,7 @@ add_executable(winx
     src/main.cpp
     src/sign_command.cpp)
 
+target_compile_definitions(winx PRIVATE WINX_VERSION="${PROJECT_VERSION}")
 target_link_libraries(winx PRIVATE
     winx::engine
     CLI11::CLI11)

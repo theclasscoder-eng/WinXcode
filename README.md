@@ -7,6 +7,7 @@
 
 **Build, sign and install iOS apps natively on Windows. No Mac, no WSL, no VM.**
 
+[![CI](https://github.com/theclasscoder-eng/WinXcode/actions/workflows/ci.yml/badge.svg)](https://github.com/theclasscoder-eng/WinXcode/actions/workflows/ci.yml)
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11%20x64-0078D6?logo=windows&logoColor=white)](#requirements)
 [![C++20](https://img.shields.io/badge/C%2B%2B-20-00599C?logo=cplusplus&logoColor=white)](CMakeLists.txt)
 [![CMake](https://img.shields.io/badge/CMake-3.25%2B-064F8C?logo=cmake&logoColor=white)](CMakePresets.json)
@@ -54,6 +55,23 @@ virtual machine or POSIX layer.
 
 ## Installation
 
+### Prebuilt release
+
+Each [release](https://github.com/theclasscoder-eng/WinXcode/releases) has
+`WinXcode-<version>-win-x64.zip` with `winx.exe`, `winxcode.exe`, the linker shim and the MSVC
+runtime. Unzip it anywhere and add the folder to `PATH`, or use a package manager:
+
+```powershell
+# Scoop
+scoop install https://github.com/theclasscoder-eng/WinXcode/releases/latest/download/winxcode.json
+
+# winget: unzip winget-manifests-<version>.zip from the release (until the package is in winget-pkgs)
+winget settings --enable LocalManifestFiles
+winget install --manifest .\winget-manifests-<version>
+```
+
+### From source
+
 From a **Developer PowerShell for VS 2022** prompt:
 
 ```powershell
@@ -72,6 +90,8 @@ The build writes these files to `build\bin\Release`:
 | `winxcode.exe` | IDE |
 | `winx-ld64-shim.exe` | Linker shim, copied into the SDK bundle |
 
+`cpack -C Release` in the `build` folder packs them into the same zip a release ships.
+
 ## Quick start
 
 ```powershell
@@ -89,6 +109,7 @@ You can also open the folder in the IDE with `winxcode.exe Hello` and press **Ru
 
 | Command | Purpose |
 |---|---|
+| `winx --version` | Print the version |
 | `winx setup` | Check toolchain, SDK, sign-in, Apple Mobile Device Service and device |
 | `winx devices [--watch] [-v] [--paired]` | Attached devices; live attach/detach; pairing records |
 | `winx auth login --mode key\|password` | Sign in with an API key (official) or an Apple ID (unofficial) |
@@ -149,8 +170,8 @@ tests/                   Catch2 tests with fake device and fake Swift toolchain
 - [x] `winx dev` one-command build → sign → install loop
 - [x] ImGui IDE with Swift highlighting and Run
 - [x] Wi-Fi device connections (`winx device wifi --on`)
+- [x] Prebuilt release zip with Scoop and winget manifests, built by GitHub Actions
 - [x] `.ipa` export, development-signed or unsigned (`winx export`, **Product > Export .ipa**)
-- [ ] Prebuilt binaries and a Windows installer (winget / Scoop)
 - [ ] LLDB debugging from the IDE
 - [ ] SourceKit-LSP code completion in the IDE
 - [ ] App extensions and multi-target projects
