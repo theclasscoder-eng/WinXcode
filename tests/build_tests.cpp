@@ -1,9 +1,11 @@
 #include <catch2/catch_test_macros.hpp>
 
+#include <algorithm>
 #include <cstdio>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
+#include <map>
 #include <stop_token>
 #include <string>
 #include <thread>
@@ -21,6 +23,7 @@
 #include "winx/device_services.hpp"
 #include "winx/files.hpp"
 #include "winx/identity.hpp"
+#include "winx/ipa.hpp"
 #include "winx/pipeline.hpp"
 #include "winx/plist.hpp"
 #include "winx/process.hpp"
@@ -272,6 +275,101 @@ TEST_CASE("cpio entries are read through a mixed pbzx stream", "[archive]") {
     build::CpioReader broken(truncated);
     CHECK(broken.next(entry));
     CHECK_THROWS_AS(broken.next(entry), build::ArchiveError);
+}
+
+// A zip archive built with miniz's own writer, holding `name` -> `data`.
+Bytes zip_with(const std::vector<std::pair<std::string, std::string>>& members) {
+    mz_zip_archive zip{};
+    REQUIRE(mz_zip_writer_init_heap(&zip, 0, 0));
+    for (const auto& [name, data] : members) {
+        REQUIRE(mz_zip_writer_add_mem(&zip, name.c_str(), data.data(), data.size(),
+                                      MZ_DEFAULT_COMPRESSION));
+    }
+    void* buffer = nullptr;
+    std::size_t size = 0;
+    REQUIRE(mz_zip_writer_finalize_heap_archive(&zip, &buffer, &size));
+    Bytes out(static_cast<std::uint8_t*>(buffer), static_cast<std::uint8_t*>(buffer) + size);
+    mz_free(buffer);
+    mz_zip_writer_end(&zip);
+    return out;
+}
+
+TEST_CASE("an app bundle is packed as an .ipa and unpacked again", "[ipa]") {
+    const test::TempDir dir("winx_ipa");
+    const fs::path app = dir.path() / "Hello.app";
+    const Bytes executable = test::simple_macho();
+    const Bytes large = crypto::random_bytes(300 * 1024);
+    write_file(app / "Hello", executable);
+    write_text_file(app / "Info.plist", plist::to_xml(plist::Dict{{"CFBundleIdentifier", "x"}}));
+    write_file(app / "Frameworks" / "Big.bin", large);
+    write_file(app / "empty", Bytes{});
+    write_text_file(app / L"Base.lproj" / L"Caf\u00e9.strings", "\"a\" = \"b\";");
+    fs::create_directories(app / "Empty");
+
+    const fs::path ipa = dir.path() / "out" / "Hello.ipa";
+    build::write_ipa(app, ipa);
+    CHECK_FALSE(fs::exists(dir.path() / "out" / "Hello.ipa.partial"));
+
+    // Any zip reader sees the standard layout, with Unix modes.
+    const Bytes archive = read_file(ipa).value();
+    mz_zip_archive zip{};
+    REQUIRE(mz_zip_reader_init_mem(&zip, archive.data(), archive.size(), 0));
+    std::vector<std::string> names;
+    std::map<std::string, std::uint32_t> modes;
+    for (mz_uint i = 0; i < mz_zip_reader_get_num_files(&zip); ++i) {
+        mz_zip_archive_file_stat stat{};
+        REQUIRE(mz_zip_reader_file_stat(&zip, i, &stat));
+        names.emplace_back(stat.m_filename);
+        CHECK((stat.m_version_made_by >> 8) == 3);
+        modes[stat.m_filename] = stat.m_external_attr >> 16;
+    }
+    CHECK(names == std::vector<std::string>{
+                       "Payload/", "Payload/Hello.app/", "Payload/Hello.app/Base.lproj/",
+                       "Payload/Hello.app/Base.lproj/Caf\xc3\xa9.strings",
+                       "Payload/Hello.app/Empty/", "Payload/Hello.app/Frameworks/",
+                       "Payload/Hello.app/Frameworks/Big.bin", "Payload/Hello.app/Hello",
+                       "Payload/Hello.app/Info.plist", "Payload/Hello.app/empty"});
+    CHECK(modes["Payload/Hello.app/"] == 0040755u);
+    CHECK(modes["Payload/Hello.app/Hello"] == 0100755u);
+    CHECK(modes["Payload/Hello.app/Info.plist"] == 0100644u);
+    std::size_t size = 0;
+    void* data = mz_zip_reader_extract_file_to_heap(&zip, "Payload/Hello.app/Frameworks/Big.bin",
+                                                    &size, 0);
+    REQUIRE(data != nullptr);
+    CHECK(Bytes(static_cast<std::uint8_t*>(data), static_cast<std::uint8_t*>(data) + size) == large);
+    mz_free(data);
+    mz_zip_reader_end(&zip);
+
+    // And extracting gives back the same tree.
+    const fs::path unpacked = build::extract_ipa(ipa, dir.path() / "unpacked");
+    CHECK(unpacked == dir.path() / "unpacked" / "Payload" / "Hello.app");
+    CHECK(read_file(unpacked / "Hello") == executable);
+    CHECK(read_file(unpacked / "Frameworks" / "Big.bin") == large);
+    CHECK(read_file(unpacked / "empty") == Bytes{});
+    CHECK(read_text_file(unpacked / L"Base.lproj" / L"Caf\u00e9.strings") == "\"a\" = \"b\";");
+    CHECK(fs::is_directory(unpacked / "Empty"));
+
+    CHECK_THROWS_AS(build::write_ipa(dir.path() / "missing.app", ipa), build::ArchiveError);
+}
+
+TEST_CASE("unsafe or unusable .ipa files are refused", "[ipa]") {
+    const test::TempDir dir("winx_ipa_bad");
+    const auto refused = [&](const Bytes& archive, std::string_view message) {
+        write_file(dir.path() / "bad.ipa", archive);
+        try {
+            build::extract_ipa(dir.path() / "bad.ipa", dir.path() / "out");
+            FAIL("extract_ipa accepted the archive");
+        } catch (const build::ArchiveError& error) {
+            CHECK(std::string(error.what()).find(message) != std::string::npos);
+        }
+    };
+    refused(zip_with({{"Payload/../../evil.txt", "x"}}), "unsafe path");
+    refused(zip_with({{"Payload\\Hello.app\\x", "x"}}), "unsafe path");
+    refused(zip_with({{"C:/Windows/x", "x"}}), "unsafe path");
+    refused(zip_with({{"Payload/readme.txt", "x"}}), "no .app");
+    refused(zip_with({{"Payload/A.app/x", "x"}, {"Payload/B.app/x", "x"}}), "more than one");
+    refused(bytes_of("not a zip"), "not a zip");
+    CHECK_FALSE(fs::exists(dir.path() / "evil.txt"));
 }
 
 TEST_CASE("SDK paths are selected and checked for Windows", "[sdk]") {
@@ -885,6 +983,34 @@ TEST_CASE("the pipeline builds, signs and installs a project", "[pipeline]") {
         CHECK(provisioned_bundle.empty());
         CHECK(fs::exists(result.bundle / "Info.plist"));
         CHECK_FALSE(fs::exists(result.bundle / "_CodeSignature"));
+    }
+    SECTION("an export packs the signed bundle as an .ipa instead of installing") {
+        options.install = false;
+        options.ipa = fs::path();
+        const engine::PipelineResult result = engine::run_pipeline(options, sink);
+        INFO(result.error);
+        REQUIRE(result.success);
+        CHECK(stages == std::vector<std::string>{"Preparing", "Building", "Packaging", "Provisioning",
+                                                 "Signing", "Exporting"});
+        CHECK(result.ipa == project / "Hello.ipa");
+        const fs::path unpacked = build::extract_ipa(result.ipa, dir.path() / "unpacked");
+        CHECK(codesign::verify_bundle(unpacked).empty());
+        CHECK(read_file(unpacked / "Hello") == read_file(result.bundle / "Hello"));
+        const std::lock_guard lock(fake.mutex);
+        CHECK(std::find(fake.installed_bundle_ids.begin(), fake.installed_bundle_ids.end(),
+                        "com.example.Hello") == fake.installed_bundle_ids.end());
+    }
+    SECTION("an unsigned export needs no device or sign-in") {
+        options.sign = false;
+        options.ipa = dir.path() / "dist" / "Unsigned.ipa";
+        const engine::PipelineResult result = engine::run_pipeline(options, sink);
+        REQUIRE(result.success);
+        CHECK(stages == std::vector<std::string>{"Preparing", "Building", "Packaging", "Exporting"});
+        CHECK(provisioned_bundle.empty());
+        CHECK(result.ipa == dir.path() / "dist" / "Unsigned.ipa");
+        const fs::path unpacked = build::extract_ipa(result.ipa, dir.path() / "unpacked");
+        CHECK(fs::exists(unpacked / "Info.plist"));
+        CHECK_FALSE(fs::exists(unpacked / "_CodeSignature"));
     }
     SECTION("a failed build reports its diagnostics and goes no further") {
         const ScopedEnv fail("WINX_FAKE_SWIFT_FAIL", "1");

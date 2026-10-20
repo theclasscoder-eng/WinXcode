@@ -8,6 +8,7 @@
 
 #include "winx/codesign.hpp"
 #include "winx/device_services.hpp"
+#include "winx/ipa.hpp"
 #include "winx/lockdown.hpp"
 #include "winx/text.hpp"
 
@@ -52,9 +53,28 @@ int with_device(const DeviceOptions& options, Action action) {
 }  // namespace
 
 int run_install(const DeviceOptions& options) {
-    const std::filesystem::path bundle = to_wide(options.target);
-    if (!std::filesystem::is_directory(bundle)) {
-        std::cerr << "error: " << options.target << " is not an .app bundle directory\n";
+    std::filesystem::path bundle = to_wide(options.target);
+    // An .ipa is unpacked to a scratch directory and installed like a bundle.
+    struct Scratch {
+        std::filesystem::path path;
+        ~Scratch() {
+            std::error_code ignored;
+            if (!path.empty()) std::filesystem::remove_all(path, ignored);
+        }
+    } scratch;
+    if (std::filesystem::is_regular_file(bundle) && bundle.extension() == L".ipa") {
+        scratch.path = std::filesystem::temp_directory_path() /
+                       std::format(L"winx-ipa-{}", GetCurrentProcessId());
+        std::filesystem::remove_all(scratch.path);
+        try {
+            bundle = build::extract_ipa(bundle, scratch.path);
+        } catch (const build::ArchiveError& error) {
+            std::cerr << "error: " << error.what() << '\n';
+            return 1;
+        }
+    } else if (!std::filesystem::is_directory(bundle)) {
+        std::cerr << "error: " << options.target
+                  << " is not an .app bundle directory or .ipa file\n";
         return 1;
     }
     // Catch an unsigned or stale bundle here rather than as a terse device error.

@@ -38,6 +38,7 @@ virtual machine or POSIX layer.
 - **Automatic provisioning.** `winx ds provision` registers the device and creates the bundle ID, certificate and profile.
 - **iOS SDK from your own Xcode.** `winx sdk install Xcode.xip` builds the SDK bundle from your copy of Xcode.
 - **Direct device access.** It handles usbmux, lockdown and pairing records, and can list apps, stream the live device log and toggle Developer Mode.
+- **`.ipa` export.** `winx export` packs the signed app as an `.ipa`, and `winx install` accepts one.
 - **Lightweight IDE.** `winxcode.exe` is a Dear ImGui editor with Swift syntax highlighting and a Run button.
 - **Secure key storage.** `.p8` keys go into the Windows key store as non-exportable, and passwords are never saved.
 
@@ -96,8 +97,9 @@ You can also open the folder in the IDE with `winxcode.exe Hello` and press **Ru
 | `winx sdk install <Xcode.xip>`, `winx sdk status` | Manage the iOS SDK bundle |
 | `winx new <Name>` | Create a SwiftUI project (SwiftPM package + `xtool.yml`) |
 | `winx build`, `winx dev` | Build only; or build, sign and install |
+| `winx export [-o App.ipa] [--unsigned]` | Build, sign and pack the app as an `.ipa` |
 | `winx sign <App.app> [--verify] [--adhoc]` | Code-sign a bundle or Mach-O, or check a signature |
-| `winx install <App.app>`, `winx uninstall <bundle-id>` | Install or remove an app |
+| `winx install <App.app\|App.ipa>`, `winx uninstall <bundle-id>` | Install or remove an app |
 | `winx device apps\|log\|devmode [--reveal]` | Installed apps, live device log, Developer Mode |
 
 ## Two ways to sign in
@@ -137,12 +139,13 @@ tests/                   Catch2 tests with fake device and fake Swift toolchain
 - [x] Code signing and verification for bundles and Mach-O binaries
 - [x] `winx dev` one-command build → sign → install loop
 - [x] ImGui IDE with Swift highlighting and Run
+- [x] `.ipa` export, development-signed or unsigned (`winx export`, **Product > Export .ipa**)
 - [ ] Prebuilt binaries and a Windows installer (winget / Scoop)
 - [ ] Wi-Fi device connections
 - [ ] LLDB debugging from the IDE
 - [ ] SourceKit-LSP code completion in the IDE
 - [ ] App extensions and multi-target projects
-- [ ] `.ipa` export for distribution
+- [ ] Ad Hoc and App Store distribution signing for exported `.ipa` files
 
 ## Contributing
 

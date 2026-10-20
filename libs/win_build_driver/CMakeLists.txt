@@ -1,6 +1,7 @@
 add_library(win_build_driver STATIC
     src/archive.cpp
     src/bundler.cpp
+    src/ipa.cpp
     src/project.cpp
     src/sdk.cpp
     src/swiftpm.cpp)

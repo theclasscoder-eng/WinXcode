@@ -383,6 +383,10 @@ void IdeApp::draw_menu_bar() {
             save_all();
             workspace_.start(RunMode::Build);
         }
+        if (ImGui::MenuItem("Export .ipa", nullptr, false, idle)) {
+            save_all();
+            workspace_.start(RunMode::Export);
+        }
         if (ImGui::MenuItem("Stop", "Ctrl+.", false, workspace_.running())) workspace_.stop();
         ImGui::EndMenu();
     }

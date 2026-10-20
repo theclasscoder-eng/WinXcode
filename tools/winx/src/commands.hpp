@@ -71,6 +71,9 @@ struct BuildOptions {
     std::string udid;
     std::string swift_path;
     bool release = false;
+    // `winx export` only.
+    std::string ipa_path;  // empty: <project>/<Product>.ipa
+    bool unsigned_ipa = false;
 };
 
 struct NewOptions {
@@ -87,6 +90,7 @@ struct SdkOptions {
 // Each returns the process exit code.
 int run_build(const BuildOptions& options);
 int run_dev(const BuildOptions& options);
+int run_export(const BuildOptions& options);
 int run_new(const NewOptions& options);
 int run_sdk(const SdkOptions& options);
 int run_setup();

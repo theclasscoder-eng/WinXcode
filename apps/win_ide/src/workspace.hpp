@@ -48,7 +48,8 @@ struct DeviceEntry {
     std::string label() const;
 };
 
-enum class RunMode { Build, Run };
+// Export signs for the selected device and writes <project>\<Product>.ipa.
+enum class RunMode { Build, Run, Export };
 
 class Workspace {
 public:

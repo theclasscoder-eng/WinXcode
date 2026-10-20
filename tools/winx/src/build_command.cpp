@@ -31,13 +31,18 @@ const char* severity_name(build::Diagnostic::Severity severity) {
     return "";
 }
 
-int run_pipeline_command(const BuildOptions& options, bool sign, bool install) {
+int run_pipeline_command(const BuildOptions& options, bool sign, bool install, bool export_ipa) {
     engine::PipelineOptions pipeline;
     pipeline.project_dir = std::filesystem::absolute(to_wide(options.project_dir));
     pipeline.udid = options.udid;
     pipeline.release = options.release;
     pipeline.sign = sign;
     pipeline.install = install;
+    if (export_ipa) {
+        pipeline.ipa = options.ipa_path.empty()
+                           ? std::filesystem::path()
+                           : std::filesystem::absolute(to_wide(options.ipa_path));
+    }
     if (!options.swift_path.empty()) pipeline.swift = to_wide(options.swift_path);
     pipeline.stop = g_stop.get_token();
     SetConsoleCtrlHandler(on_control, TRUE);
@@ -83,6 +88,15 @@ int run_pipeline_command(const BuildOptions& options, bool sign, bool install) {
         std::cerr << "error: " << result.error << '\n';
         return result.cancelled ? 130 : 1;
     }
+    if (export_ipa) {
+        std::cout << "Exported " << result.bundle_id << " to " << to_utf8(result.ipa.wstring())
+                  << '\n';
+        std::cout << (sign ? "It is signed for development and installs only on the devices in "
+                             "its provisioning profile.\n"
+                           : "It is unsigned; a signing tool must sign it before it can be "
+                             "installed.\n");
+        return 0;
+    }
     std::cout << (install ? "Installed " : sign ? "Signed " : "Built ") << result.bundle_id << " at "
               << to_utf8(result.bundle.wstring()) << '\n';
     if (install) std::cout << "Tap the app on the device to launch it.\n";
@@ -91,9 +105,15 @@ int run_pipeline_command(const BuildOptions& options, bool sign, bool install) {
 
 }  // namespace
 
-int run_build(const BuildOptions& options) { return run_pipeline_command(options, false, false); }
+int run_build(const BuildOptions& options) {
+    return run_pipeline_command(options, false, false, false);
+}
 
-int run_dev(const BuildOptions& options) { return run_pipeline_command(options, true, true); }
+int run_dev(const BuildOptions& options) { return run_pipeline_command(options, true, true, false); }
+
+int run_export(const BuildOptions& options) {
+    return run_pipeline_command(options, !options.unsigned_ipa, false, true);
+}
 
 int run_new(const NewOptions& options) {
     try {

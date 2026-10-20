@@ -9,6 +9,7 @@
 #include "winx/device_services.hpp"
 #include "winx/files.hpp"
 #include "winx/identity.hpp"
+#include "winx/ipa.hpp"
 #include "winx/lockdown.hpp"
 #include "winx/project.hpp"
 #include "winx/provisioner.hpp"
@@ -180,7 +181,17 @@ PipelineResult run_pipeline(const PipelineOptions& options, const EventSink& sin
         }
         result.bundle = bundled.bundle;
         result.bundle_id = bundled.bundle_id;
+        const auto export_ipa = [&] {
+            if (!options.ipa) return;
+            emit(sink, Event::Kind::Stage, "Exporting");
+            const fs::path ipa = options.ipa->empty()
+                                     ? options.project_dir / to_wide(built.product + ".ipa")
+                                     : *options.ipa;
+            build::write_ipa(bundled.bundle, ipa);
+            result.ipa = ipa;
+        };
         if (!options.sign) {
+            export_ipa();
             result.success = true;
             return result;
         }
@@ -213,6 +224,7 @@ PipelineResult run_pipeline(const PipelineOptions& options, const EventSink& sin
             result.error = "the signed bundle failed its self-check: " + problems.front();
             return result;
         }
+        export_ipa();
         if (!options.install) {
             result.success = true;
             return result;

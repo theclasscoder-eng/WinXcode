@@ -88,8 +88,10 @@ int main(int argc, char** argv) {
         command->add_option("--host", device_options.host, "usbmux host")->group("Advanced");
         command->add_option("--port", device_options.port, "usbmux port")->group("Advanced");
     };
-    CLI::App* install = app.add_subcommand("install", "Install a signed .app bundle on a device");
-    install->add_option("bundle", device_options.target, "Path to the .app bundle")->required();
+    CLI::App* install =
+        app.add_subcommand("install", "Install a signed .app bundle or .ipa on a device");
+    install->add_option("bundle", device_options.target, "Path to the .app bundle or .ipa file")
+        ->required();
     add_device_flags(install);
     CLI::App* uninstall = app.add_subcommand("uninstall", "Remove an app from a device");
     uninstall->add_option("bundle-id", device_options.target, "Bundle identifier")->required();
@@ -122,6 +124,16 @@ int main(int argc, char** argv) {
     dev->add_option("-u,--udid", build_options.udid,
                     "Device to install on (default: the only attached device)");
 
+    CLI::App* export_ipa =
+        app.add_subcommand("export", "Build, sign and pack the app as an .ipa");
+    add_build_flags(export_ipa);
+    export_ipa->add_option("-o,--output", build_options.ipa_path,
+                           "Where to write the .ipa (default: <project>\\<Product>.ipa)");
+    export_ipa->add_flag("--unsigned", build_options.unsigned_ipa,
+                         "Skip provisioning and signing, for tools that sign the .ipa themselves");
+    export_ipa->add_option("-u,--udid", build_options.udid,
+                           "Device to provision for (default: the only attached device)");
+
     winx::cli::NewOptions new_options;
     CLI::App* create = app.add_subcommand("new", "Create a new SwiftUI project");
     create->add_option("name", new_options.name, "Project and product name")->required();
@@ -142,6 +154,7 @@ int main(int argc, char** argv) {
     try {
         if (build->parsed()) return winx::cli::run_build(build_options);
         if (dev->parsed()) return winx::cli::run_dev(build_options);
+        if (export_ipa->parsed()) return winx::cli::run_export(build_options);
         if (create->parsed()) return winx::cli::run_new(new_options);
         if (sdk_install->parsed()) {
             sdk_options.action = "install";

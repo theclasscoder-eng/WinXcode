@@ -12,7 +12,7 @@
 #include "winx/plist.hpp"
 #include "winx/swiftpm.hpp"
 
-// The whole "Run" action: build -> bundle -> provision -> sign -> install.
+// The whole "Run" action: build -> bundle -> provision -> sign -> [export] -> install.
 // The CLI's `winx dev` and the IDE's Run button both call run_pipeline and
 // differ only in how they present the events.
 namespace winx::engine {
@@ -54,6 +54,9 @@ struct PipelineOptions {
     // installing can be left out.
     bool sign = true;
     bool install = true;
+    // Also pack the finished bundle (signed or not, as `sign` says) as an
+    // .ipa. nullopt: no export; an empty path: <project_dir>/<product>.ipa.
+    std::optional<std::filesystem::path> ipa;
     std::optional<std::filesystem::path> swift;  // explicit swift.exe
     std::filesystem::path sdk_dir;               // default_sdk_dir() when empty
     std::stop_token stop;
@@ -76,6 +79,7 @@ struct PipelineResult {
     std::string product;
     std::string bundle_id;
     std::filesystem::path bundle;
+    std::filesystem::path ipa;  // set when an .ipa was written
     std::vector<build::Diagnostic> diagnostics;
 };
 

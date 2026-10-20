@@ -247,9 +247,11 @@ void Workspace::start(RunMode mode) {
 
     engine::PipelineOptions options;
     options.project_dir = project_dir_;
-    options.sign = mode == RunMode::Run;
+    options.sign = mode != RunMode::Build;
     options.install = mode == RunMode::Run;
-    if (mode == RunMode::Run) {
+    if (mode == RunMode::Export) options.ipa = std::filesystem::path();
+    if (mode != RunMode::Build) {
+        // Even an exported .ipa is provisioned for one device.
         if (selected_device_ < 0) {
             append_log(ConsoleLine::Kind::Error, "No device is attached. Connect an iPhone and "
                                                  "unlock it, or use Product > Build.");
@@ -345,6 +347,10 @@ bool Workspace::poll() {
         if (result->success) {
             last_result_ = result->bundle.empty() ? "Succeeded" : "Succeeded: " + result->bundle_id;
             append_log(ConsoleLine::Kind::Success, last_result_);
+            if (!result->ipa.empty()) {
+                append_log(ConsoleLine::Kind::Success,
+                           "Exported " + to_utf8(result->ipa.wstring()));
+            }
         } else {
             last_result_ = result->cancelled ? "Stopped" : "Failed";
             append_log(ConsoleLine::Kind::Error, result->cancelled ? "Stopped." : result->error);
