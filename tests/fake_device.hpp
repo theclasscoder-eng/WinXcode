@@ -4,6 +4,7 @@
 #include <map>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <set>
 #include <string>
 #include <thread>
@@ -44,6 +45,12 @@ public:
     bool locked = false;
     bool developer_mode = true;
     bool developer_mode_revealed = false;
+    // lockdown's EnableWiFiConnections; nullopt until first set, as on a new phone.
+    std::optional<bool> wifi_connections;
+    // Also list the phone as a Wi-Fi attachment (device ID 2), ahead of USB.
+    bool also_on_wifi = false;
+    // DeviceID of every usbmux Connect request.
+    std::vector<int> connected_device_ids;
     std::string install_error;
     std::vector<std::string> syslog_lines = {"first line", "second line"};
     std::set<std::string> directories;

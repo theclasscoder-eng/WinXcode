@@ -127,6 +127,13 @@ std::optional<bool> developer_mode_enabled(DeviceConnection& device);
 // Makes the Developer Mode switch appear in Settings > Privacy & Security.
 void reveal_developer_mode(DeviceConnection& device);
 
+// Whether the device also offers itself over Wi-Fi to the hosts it is paired
+// with, as Finder's and Apple Devices' "Show this iPhone when on Wi-Fi" does.
+// Once on, Apple Mobile Device Service lists it with ConnectionType::Network
+// while it is awake on the same network.
+bool wifi_connections_enabled(DeviceConnection& device);
+void set_wifi_connections(DeviceConnection& device, bool enabled);
+
 // ---- Device log -----------------------------------------------------------
 
 class SyslogStream {

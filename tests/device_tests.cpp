@@ -301,6 +301,60 @@ TEST_CASE("Developer Mode status is read and its switch can be revealed", "[devi
     CHECK(fake.developer_mode_revealed);
 }
 
+TEST_CASE("Wi-Fi connections are switched through lockdown", "[device][wifi]") {
+    test::FakeDevice fake;
+    device::DeviceConnection connection = device::DeviceConnection::open(fake.endpoint());
+    // A phone that was never switched has no value; that reads as off.
+    CHECK_FALSE(device::wifi_connections_enabled(connection));
+    device::set_wifi_connections(connection, true);
+    CHECK(device::wifi_connections_enabled(connection));
+    {
+        const std::lock_guard lock(fake.mutex);
+        CHECK(fake.wifi_connections == true);
+    }
+    device::set_wifi_connections(connection, false);
+    CHECK_FALSE(device::wifi_connections_enabled(connection));
+}
+
+TEST_CASE("a phone attached by USB and Wi-Fi is reached through USB", "[device][wifi]") {
+    test::FakeDevice fake;
+    {
+        const std::lock_guard lock(fake.mutex);
+        fake.also_on_wifi = true;
+    }
+    const auto devices = device::UsbmuxClient(fake.endpoint()).list_devices();
+    REQUIRE(devices.size() == 2);
+    CHECK(devices[0].connection == device::ConnectionType::Network);
+    CHECK(devices[0].udid == devices[1].udid);
+
+    // One phone twice is still one device, with or without --udid.
+    for (const std::string& udid : {std::string(), fake.udid()}) {
+        device::DeviceConnection connection = device::DeviceConnection::open(fake.endpoint(), udid);
+        CHECK(connection.device().connection == device::ConnectionType::Usb);
+        CHECK(connection.device().device_id == 1);
+        CHECK(device::developer_mode_enabled(connection) == true);
+    }
+    const std::lock_guard lock(fake.mutex);
+    CHECK(std::find(fake.connected_device_ids.begin(), fake.connected_device_ids.end(), 2) ==
+          fake.connected_device_ids.end());
+}
+
+TEST_CASE("a Wi-Fi device that cannot be reached is explained", "[device][wifi]") {
+    test::FakeDevice fake;
+    device::UsbmuxDevice asleep;
+    asleep.device_id = 2;
+    asleep.udid = fake.udid();
+    asleep.connection = device::ConnectionType::Network;
+    // Nothing listens here, so the tunnel cannot be opened.
+    device::DeviceConnection connection({"127.0.0.1", 1}, asleep, fake.pair_record());
+    try {
+        connection.get_value("DeviceName");
+        FAIL("the connection unexpectedly succeeded");
+    } catch (const device::LockdownError& error) {
+        CHECK(std::string(error.what()).find("over Wi-Fi") != std::string::npos);
+    }
+}
+
 TEST_CASE("the device log is delivered line by line", "[device]") {
     test::FakeDevice fake;
     device::DeviceConnection connection = device::DeviceConnection::open(fake.endpoint());

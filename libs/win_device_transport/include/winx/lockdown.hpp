@@ -55,6 +55,8 @@ public:
     std::string query_type();
     // Throws LockdownError if the device refuses the key.
     plist::Value get_value(std::string_view key, std::string_view domain = {});
+    // Requires a session.
+    void set_value(std::string_view key, const plist::Value& value, std::string_view domain = {});
 
     // Authenticates as the paired host. When the device asks for it, which
     // every current iOS version does, the connection continues over TLS.
@@ -95,13 +97,15 @@ public:
     DeviceConnection(UsbmuxEndpoint endpoint, UsbmuxDevice device, PairRecord record);
 
     // Picks the device with the given UDID, or the only attached device when
-    // `udid` is empty, and loads its pairing record. Throws LockdownError with
+    // `udid` is empty, and loads its pairing record. A phone attached both by
+    // USB and over Wi-Fi is reached through USB. Throws LockdownError with
     // an actionable message when there is no such device or it is not paired.
     static DeviceConnection open(const UsbmuxEndpoint& endpoint, std::string_view udid = {});
 
     const UsbmuxDevice& device() const noexcept { return device_; }
 
     plist::Value get_value(std::string_view key, std::string_view domain = {});
+    void set_value(std::string_view key, const plist::Value& value, std::string_view domain = {});
     // A ready-to-use stream to the named service, already upgraded to TLS
     // when the device requires it.
     std::unique_ptr<net::Stream> start_service(std::string_view name);

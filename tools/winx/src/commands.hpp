@@ -62,6 +62,9 @@ struct DeviceOptions {
     std::string target;  // bundle path or bundle identifier, depending on the command
     std::string udid;    // empty: the only attached device
     bool reveal = false;
+    // `winx device wifi`: switch Wi-Fi connections on or off; neither shows the state.
+    bool wifi_on = false;
+    bool wifi_off = false;
     std::string host = "127.0.0.1";
     std::uint16_t port = 27015;
 };
@@ -98,6 +101,7 @@ int run_install(const DeviceOptions& options);
 int run_uninstall(const DeviceOptions& options);
 int run_apps(const DeviceOptions& options);
 int run_devmode(const DeviceOptions& options);
+int run_wifi(const DeviceOptions& options);
 int run_log(const DeviceOptions& options);
 int run_sign(const SignOptions& options);
 int run_devices(const DevicesOptions& options);

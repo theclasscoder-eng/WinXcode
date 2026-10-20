@@ -138,6 +138,20 @@ int run_devmode(const DeviceOptions& options) {
     });
 }
 
+int run_wifi(const DeviceOptions& options) {
+    return with_device(options, [&](device::DeviceConnection& connection) {
+        const bool change = options.wifi_on || options.wifi_off;
+        if (change) device::set_wifi_connections(connection, options.wifi_on);
+        const bool enabled = device::wifi_connections_enabled(connection);
+        std::cout << "Wi-Fi connections are " << (enabled ? "on" : "off") << ".\n";
+        if (change && enabled) {
+            std::cout << "The device is listed by `winx devices` as Wi-Fi while it is awake on the "
+                         "same network as this PC.\nUSB is still used whenever it is plugged in.\n";
+        }
+        return 0;
+    });
+}
+
 int run_log(const DeviceOptions& options) {
     g_stop = CreateEventW(nullptr, TRUE, FALSE, nullptr);
     SetConsoleCtrlHandler(on_control, TRUE);

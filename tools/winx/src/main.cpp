@@ -107,6 +107,12 @@ int main(int argc, char** argv) {
     devmode->add_flag("--reveal", device_options.reveal,
                       "Make the Developer Mode switch appear in Settings");
     add_device_flags(devmode);
+    CLI::App* wifi =
+        device->add_subcommand("wifi", "Show or change whether the device connects over Wi-Fi");
+    wifi->add_flag("--on", device_options.wifi_on, "Let this PC reach the device over Wi-Fi");
+    wifi->add_flag("--off", device_options.wifi_off, "Stop offering the device over Wi-Fi")
+        ->excludes("--on");
+    add_device_flags(wifi);
 
     // ---- project commands ----
     winx::cli::BuildOptions build_options;
@@ -170,6 +176,7 @@ int main(int argc, char** argv) {
         if (apps->parsed()) return winx::cli::run_apps(device_options);
         if (log->parsed()) return winx::cli::run_log(device_options);
         if (devmode->parsed()) return winx::cli::run_devmode(device_options);
+        if (wifi->parsed()) return winx::cli::run_wifi(device_options);
         if (sign->parsed()) return winx::cli::run_sign(sign_options);
         if (devices->parsed()) return winx::cli::run_devices(devices_options);
         if (login->parsed()) return winx::cli::run_auth_login(login_options);

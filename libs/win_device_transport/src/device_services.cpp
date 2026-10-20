@@ -384,6 +384,22 @@ void reveal_developer_mode(DeviceConnection& device) {
     }
 }
 
+bool wifi_connections_enabled(DeviceConnection& device) {
+    try {
+        const plist::Value value =
+            device.get_value("EnableWiFiConnections", "com.apple.mobile.wireless_lockdown");
+        if (const auto* flag = value.get_if<bool>()) return *flag;
+    } catch (const LockdownError& error) {
+        // A device that was never switched has no value yet.
+        if (error.code() != "MissingValue") throw;
+    }
+    return false;
+}
+
+void set_wifi_connections(DeviceConnection& device, bool enabled) {
+    device.set_value("EnableWiFiConnections", enabled, "com.apple.mobile.wireless_lockdown");
+}
+
 SyslogStream::SyslogStream(std::unique_ptr<net::Stream> stream) : stream_(std::move(stream)) {}
 
 SyslogStream SyslogStream::open(DeviceConnection& device) {

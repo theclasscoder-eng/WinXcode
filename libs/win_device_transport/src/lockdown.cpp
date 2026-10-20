@@ -124,6 +124,14 @@ plist::Value LockdownClient::get_value(std::string_view key, std::string_view do
     return value ? *value : plist::Value{};
 }
 
+void LockdownClient::set_value(std::string_view key, const plist::Value& value,
+                               std::string_view domain) {
+    if (!in_session()) throw LockdownError("a lockdown session is required to change a value");
+    plist::Dict message{{"Request", "SetValue"}, {"Key", std::string(key)}, {"Value", value}};
+    if (!domain.empty()) message.set("Domain", std::string(domain));
+    request(std::move(message));
+}
+
 void LockdownClient::start_session(const PairRecord& record) {
     if (in_session()) return;
     // Prepare the TLS identity first so a bad pairing record fails before the
@@ -195,12 +203,13 @@ DeviceConnection DeviceConnection::open(const UsbmuxEndpoint& endpoint, std::str
     std::vector<UsbmuxDevice> devices = client.list_devices();
     if (devices.empty()) throw LockdownError("no device is attached");
 
+    // The same phone can appear once per transport; prefer USB, which is
+    // faster and does not depend on the phone being awake.
+    std::stable_sort(devices.begin(), devices.end(), [](const auto& a, const auto& b) {
+        return a.connection == ConnectionType::Usb && b.connection != ConnectionType::Usb;
+    });
     const UsbmuxDevice* chosen = nullptr;
     if (udid.empty()) {
-        // The same phone can appear once per transport; prefer USB.
-        std::stable_sort(devices.begin(), devices.end(), [](const auto& a, const auto& b) {
-            return a.connection == ConnectionType::Usb && b.connection != ConnectionType::Usb;
-        });
         const bool one_device = std::all_of(devices.begin(), devices.end(), [&](const auto& d) {
             return d.udid == devices.front().udid;
         });
@@ -240,15 +249,29 @@ DeviceConnection DeviceConnection::open(const UsbmuxEndpoint& endpoint, std::str
 
 LockdownClient& DeviceConnection::lockdown() {
     if (!lockdown_) {
-        LockdownClient client = LockdownClient::connect(endpoint_, device_.device_id);
-        client.start_session(record_);
-        lockdown_.emplace(std::move(client));
+        std::optional<LockdownClient> client;
+        try {
+            client.emplace(LockdownClient::connect(endpoint_, device_.device_id));
+        } catch (const std::exception& error) {
+            if (device_.connection != ConnectionType::Network) throw;
+            throw LockdownError(std::format(
+                "could not reach the device over Wi-Fi ({}). Wake and unlock it, and check that "
+                "it is on the same network as this PC, or connect it by USB",
+                error.what()));
+        }
+        client->start_session(record_);
+        lockdown_.emplace(std::move(*client));
     }
     return *lockdown_;
 }
 
 plist::Value DeviceConnection::get_value(std::string_view key, std::string_view domain) {
     return lockdown().get_value(key, domain);
+}
+
+void DeviceConnection::set_value(std::string_view key, const plist::Value& value,
+                                 std::string_view domain) {
+    lockdown().set_value(key, value, domain);
 }
 
 std::unique_ptr<net::Stream> DeviceConnection::start_service(std::string_view name) {

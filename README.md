@@ -38,6 +38,7 @@ virtual machine or POSIX layer.
 - **Automatic provisioning.** `winx ds provision` registers the device and creates the bundle ID, certificate and profile.
 - **iOS SDK from your own Xcode.** `winx sdk install Xcode.xip` builds the SDK bundle from your copy of Xcode.
 - **Direct device access.** It handles usbmux, lockdown and pairing records, and can list apps, stream the live device log and toggle Developer Mode.
+- **USB or Wi-Fi.** After `winx device wifi --on` over USB once, every command also works with the phone on the same Wi-Fi network.
 - **`.ipa` export.** `winx export` packs the signed app as an `.ipa`, and `winx install` accepts one.
 - **Lightweight IDE.** `winxcode.exe` is a Dear ImGui editor with Swift syntax highlighting and a Run button.
 - **Secure key storage.** `.p8` keys go into the Windows key store as non-exportable, and passwords are never saved.
@@ -101,6 +102,14 @@ You can also open the folder in the IDE with `winxcode.exe Hello` and press **Ru
 | `winx sign <App.app> [--verify] [--adhoc]` | Code-sign a bundle or Mach-O, or check a signature |
 | `winx install <App.app\|App.ipa>`, `winx uninstall <bundle-id>` | Install or remove an app |
 | `winx device apps\|log\|devmode [--reveal]` | Installed apps, live device log, Developer Mode |
+| `winx device wifi [--on\|--off]` | Let the device be reached over Wi-Fi as well as USB |
+
+### Working over Wi-Fi
+
+Plug the phone in once, then run `winx device wifi --on`. While the phone is awake and on the
+same network as the PC, `winx devices` lists it as `Wi-Fi`, and `winx dev`, `winx install` and the
+`winx device` commands use that connection. USB is still preferred whenever the cable is plugged
+in. Run `winx device wifi --off` to stop.
 
 ## Two ways to sign in
 
@@ -139,9 +148,9 @@ tests/                   Catch2 tests with fake device and fake Swift toolchain
 - [x] Code signing and verification for bundles and Mach-O binaries
 - [x] `winx dev` one-command build → sign → install loop
 - [x] ImGui IDE with Swift highlighting and Run
+- [x] Wi-Fi device connections (`winx device wifi --on`)
 - [x] `.ipa` export, development-signed or unsigned (`winx export`, **Product > Export .ipa**)
 - [ ] Prebuilt binaries and a Windows installer (winget / Scoop)
-- [ ] Wi-Fi device connections
 - [ ] LLDB debugging from the IDE
 - [ ] SourceKit-LSP code completion in the IDE
 - [ ] App extensions and multi-target projects

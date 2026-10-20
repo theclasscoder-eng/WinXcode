@@ -142,15 +142,26 @@ void FakeDevice::serve(net::Socket socket) {
     };
 
     if (type == "ListDevices") {
-        const Value reply = Dict{
-            {"DeviceList",
-             plist::Array{Dict{{"DeviceID", 1},
-                               {"MessageType", "Attached"},
-                               {"Properties", Dict{{"ConnectionType", "USB"},
-                                                   {"DeviceID", 1},
-                                                   {"ProductID", 4776},
-                                                   {"SerialNumber", "00008110001A2B3C4D5E6F78"}}}}}}};
-        wire::write_packet(socket, reply, request.header.tag);
+        plist::Array list;
+        bool wifi = false;
+        {
+            const std::lock_guard lock(mutex);
+            wifi = also_on_wifi;
+        }
+        if (wifi) {
+            list.push_back(Dict{{"DeviceID", 2},
+                                {"MessageType", "Attached"},
+                                {"Properties", Dict{{"ConnectionType", "Network"},
+                                                    {"DeviceID", 2},
+                                                    {"SerialNumber", "00008110001A2B3C4D5E6F78"}}}});
+        }
+        list.push_back(Dict{{"DeviceID", 1},
+                            {"MessageType", "Attached"},
+                            {"Properties", Dict{{"ConnectionType", "USB"},
+                                                {"DeviceID", 1},
+                                                {"ProductID", 4776},
+                                                {"SerialNumber", "00008110001A2B3C4D5E6F78"}}}});
+        wire::write_packet(socket, Dict{{"DeviceList", std::move(list)}}, request.header.tag);
         // The client may follow up with ReadPairRecord on the same connection,
         // which is how it finds the record when there is no file on disk.
         try {
@@ -185,6 +196,11 @@ void FakeDevice::serve(net::Socket socket) {
         return;
     }
 
+    {
+        const std::lock_guard lock(mutex);
+        connected_device_ids.push_back(
+            static_cast<int>(request.payload.int_at("DeviceID").value_or(0)));
+    }
     const auto network_port = static_cast<std::uint16_t>(request.payload.int_at("PortNumber").value_or(0));
     const auto port = static_cast<std::uint16_t>((network_port << 8) | (network_port >> 8));
     if (port != device::kLockdownPort && (port < kAfcPort || port > kAmfiPort)) {
@@ -226,12 +242,35 @@ void FakeDevice::serve_lockdown(std::unique_ptr<net::Stream> stream) {
                     const std::lock_guard lock(mutex);
                     reply.set("Value", developer_mode);
                 }
+            } else if (domain == "com.apple.mobile.wireless_lockdown" &&
+                       key == "EnableWiFiConnections") {
+                const std::lock_guard lock(mutex);
+                if (!in_session) {
+                    reply.set("Error", "GetProhibited");
+                } else if (!wifi_connections) {
+                    reply.set("Error", "MissingValue");
+                } else {
+                    reply.set("Value", *wifi_connections);
+                }
             } else if (key == "DeviceName") {
                 reply.set("Value", "Fake iPhone");
             } else if (key == "ProductVersion") {
                 reply.set("Value", "18.1");
             } else {
                 reply.set("Error", "MissingValue");
+            }
+        } else if (kind == "SetValue") {
+            const std::string key = request.string_at("Key").value_or("");
+            const std::string domain = request.string_at("Domain").value_or("");
+            const auto value = request.bool_at("Value");
+            if (!in_session) {
+                reply.set("Error", "SessionInactive");
+            } else if (domain != "com.apple.mobile.wireless_lockdown" ||
+                       key != "EnableWiFiConnections" || !value) {
+                reply.set("Error", "SetProhibited");
+            } else {
+                const std::lock_guard lock(mutex);
+                wifi_connections = *value;
             }
         } else if (kind == "StartSession") {
             bool is_locked = false;
