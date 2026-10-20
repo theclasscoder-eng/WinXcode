@@ -283,7 +283,7 @@ Bytes zip_with(const std::vector<std::pair<std::string, std::string>>& members) 
     REQUIRE(mz_zip_writer_init_heap(&zip, 0, 0));
     for (const auto& [name, data] : members) {
         REQUIRE(mz_zip_writer_add_mem(&zip, name.c_str(), data.data(), data.size(),
-                                      MZ_DEFAULT_COMPRESSION));
+                                      MZ_DEFAULT_LEVEL));
     }
     void* buffer = nullptr;
     std::size_t size = 0;
@@ -304,7 +304,8 @@ TEST_CASE("an app bundle is packed as an .ipa and unpacked again", "[ipa]") {
     write_file(app / "Frameworks" / "Big.bin", large);
     write_file(app / "empty", Bytes{});
     write_text_file(app / L"Base.lproj" / L"Caf\u00e9.strings", "\"a\" = \"b\";");
-    fs::create_directories(app / "Empty");
+    // Not "Empty": NTFS would take that for the file "empty".
+    fs::create_directories(app / "Assets");
 
     const fs::path ipa = dir.path() / "out" / "Hello.ipa";
     build::write_ipa(app, ipa);
@@ -324,9 +325,10 @@ TEST_CASE("an app bundle is packed as an .ipa and unpacked again", "[ipa]") {
         modes[stat.m_filename] = stat.m_external_attr >> 16;
     }
     CHECK(names == std::vector<std::string>{
-                       "Payload/", "Payload/Hello.app/", "Payload/Hello.app/Base.lproj/",
+                       "Payload/", "Payload/Hello.app/", "Payload/Hello.app/Assets/",
+                       "Payload/Hello.app/Base.lproj/",
                        "Payload/Hello.app/Base.lproj/Caf\xc3\xa9.strings",
-                       "Payload/Hello.app/Empty/", "Payload/Hello.app/Frameworks/",
+                       "Payload/Hello.app/Frameworks/",
                        "Payload/Hello.app/Frameworks/Big.bin", "Payload/Hello.app/Hello",
                        "Payload/Hello.app/Info.plist", "Payload/Hello.app/empty"});
     CHECK(modes["Payload/Hello.app/"] == 0040755u);
@@ -347,7 +349,7 @@ TEST_CASE("an app bundle is packed as an .ipa and unpacked again", "[ipa]") {
     CHECK(read_file(unpacked / "Frameworks" / "Big.bin") == large);
     CHECK(read_file(unpacked / "empty") == Bytes{});
     CHECK(read_text_file(unpacked / L"Base.lproj" / L"Caf\u00e9.strings") == "\"a\" = \"b\";");
-    CHECK(fs::is_directory(unpacked / "Empty"));
+    CHECK(fs::is_directory(unpacked / "Assets"));
 
     CHECK_THROWS_AS(build::write_ipa(dir.path() / "missing.app", ipa), build::ArchiveError);
 }

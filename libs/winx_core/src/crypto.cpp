@@ -4,6 +4,9 @@
 
 #include <bcrypt.h>
 
+#include <algorithm>
+#include <array>
+#include <cstring>
 #include <format>
 #include <utility>
 
@@ -87,6 +90,125 @@ BCRYPT_ALG_HANDLE cbc_provider() {
 BCRYPT_ALG_HANDLE gcm_provider() {
     static const Provider provider(BCRYPT_AES_ALGORITHM, 0, BCRYPT_CHAIN_MODE_GCM);
     return provider.get();
+}
+
+BCRYPT_ALG_HANDLE ecb_provider() {
+    static const Provider provider(BCRYPT_AES_ALGORITHM, 0, BCRYPT_CHAIN_MODE_ECB);
+    return provider.get();
+}
+
+// ---- GCM for nonces CNG refuses -------------------------------------------
+// CNG's GCM takes only 96-bit nonces, but Apple's GrandSlam uses 128-bit
+// ones. NIST SP 800-38D defines the general case: the pre-counter block J0
+// is GHASH of the nonce instead of nonce || 1. This implements that case on
+// top of raw AES blocks; 96-bit nonces still go to CNG.
+
+using Block = std::array<std::uint8_t, 16>;
+
+// Multiplication in GF(2^128) with GCM's bit order (SP 800-38D, 6.3).
+Block gf_multiply(const Block& x, const Block& y) {
+    Block z{};
+    Block v = y;
+    for (int i = 0; i < 128; ++i) {
+        if ((x[static_cast<std::size_t>(i / 8)] >> (7 - i % 8)) & 1) {
+            for (std::size_t j = 0; j < 16; ++j) z[j] ^= v[j];
+        }
+        const bool carry = (v[15] & 1) != 0;
+        for (std::size_t j = 15; j > 0; --j) {
+            v[j] = static_cast<std::uint8_t>((v[j] >> 1) | (v[j - 1] << 7));
+        }
+        v[0] >>= 1;
+        if (carry) v[0] ^= 0xE1;
+    }
+    return z;
+}
+
+class Ghash {
+public:
+    explicit Ghash(const Block& h) : h_(h) {}
+
+    // Absorbs `data` zero-padded to a whole number of blocks.
+    void update(ByteView data) {
+        for (std::size_t offset = 0; offset < data.size(); offset += 16) {
+            const std::size_t count = std::min<std::size_t>(16, data.size() - offset);
+            for (std::size_t i = 0; i < count; ++i) y_[i] ^= data[offset + i];
+            y_ = gf_multiply(y_, h_);
+        }
+    }
+
+    // Absorbs the closing block of two 64-bit bit lengths and returns the hash.
+    Block finish(std::uint64_t first_bytes, std::uint64_t second_bytes) {
+        Block lengths{};
+        for (int i = 0; i < 8; ++i) {
+            const auto at = static_cast<std::size_t>(i);
+            lengths[7 - at] = static_cast<std::uint8_t>((first_bytes * 8) >> (8 * i));
+            lengths[15 - at] = static_cast<std::uint8_t>((second_bytes * 8) >> (8 * i));
+        }
+        update(lengths);
+        return y_;
+    }
+
+private:
+    Block h_;
+    Block y_{};
+};
+
+using BlockCipher = void (*)(const void* key, std::uint8_t* blocks, std::size_t count);
+
+struct GcmState {
+    Block j0{};
+    Block h{};
+};
+
+GcmState gcm_start(BlockCipher cipher, const void* key, ByteView nonce) {
+    GcmState state;
+    cipher(key, state.h.data(), 1);
+    Ghash ghash(state.h);
+    ghash.update(nonce);
+    state.j0 = ghash.finish(0, nonce.size());
+    return state;
+}
+
+// CTR mode from inc32(J0), in place.
+void gcm_ctr(BlockCipher cipher, const void* key, const Block& j0, std::span<std::uint8_t> data) {
+    const std::size_t blocks = (data.size() + 15) / 16;
+    if (blocks == 0) return;
+    std::vector<std::uint8_t> stream(blocks * 16);
+    std::uint32_t counter = (std::uint32_t{j0[12]} << 24) | (std::uint32_t{j0[13]} << 16) |
+                            (std::uint32_t{j0[14]} << 8) | j0[15];
+    for (std::size_t b = 0; b < blocks; ++b) {
+        ++counter;
+        std::uint8_t* block = stream.data() + b * 16;
+        std::memcpy(block, j0.data(), 12);
+        block[12] = static_cast<std::uint8_t>(counter >> 24);
+        block[13] = static_cast<std::uint8_t>(counter >> 16);
+        block[14] = static_cast<std::uint8_t>(counter >> 8);
+        block[15] = static_cast<std::uint8_t>(counter);
+    }
+    cipher(key, stream.data(), blocks);
+    for (std::size_t i = 0; i < data.size(); ++i) data[i] ^= stream[i];
+}
+
+Block gcm_tag(BlockCipher cipher, const void* key, const GcmState& state, ByteView aad,
+              ByteView ciphertext) {
+    Ghash ghash(state.h);
+    ghash.update(aad);
+    ghash.update(ciphertext);
+    const Block s = ghash.finish(aad.size(), ciphertext.size());
+    Block tag = state.j0;
+    cipher(key, tag.data(), 1);
+    for (std::size_t i = 0; i < 16; ++i) tag[i] ^= s[i];
+    return tag;
+}
+
+// ---- end of the general GCM case -------------------------------------------
+
+void ecb_encrypt_blocks(const void* key, std::uint8_t* blocks, std::size_t count) {
+    const auto handle = static_cast<BCRYPT_KEY_HANDLE>(const_cast<void*>(key));
+    const auto size = static_cast<ULONG>(count * 16);
+    ULONG written = 0;
+    check(BCryptEncrypt(handle, blocks, size, nullptr, nullptr, 0, blocks, size, &written, 0),
+          "AES-ECB encrypt");
 }
 
 Bytes aes_cbc(bool encrypt, ByteView key, ByteView iv, ByteView input) {
@@ -204,6 +326,16 @@ Bytes aes_cbc_decrypt(ByteView key, ByteView iv, ByteView ciphertext) {
 }
 
 GcmSealed aes_gcm_encrypt(ByteView key, ByteView nonce, ByteView plaintext, ByteView aad) {
+    if (nonce.empty()) throw CryptoError("AES-GCM needs a nonce");
+    if (nonce.size() != 12) {
+        const SymmetricKey handle(ecb_provider(), key);
+        const GcmState state = gcm_start(ecb_encrypt_blocks, handle.get(), nonce);
+        GcmSealed sealed{Bytes(plaintext.begin(), plaintext.end()), {}};
+        gcm_ctr(ecb_encrypt_blocks, handle.get(), state.j0, sealed.ciphertext);
+        const Block tag = gcm_tag(ecb_encrypt_blocks, handle.get(), state, aad, sealed.ciphertext);
+        sealed.tag.assign(tag.begin(), tag.end());
+        return sealed;
+    }
     const SymmetricKey handle(gcm_provider(), key);
     GcmSealed sealed{Bytes(plaintext.size()), Bytes(16)};
     BCRYPT_AUTHENTICATED_CIPHER_MODE_INFO info;
@@ -225,6 +357,21 @@ GcmSealed aes_gcm_encrypt(ByteView key, ByteView nonce, ByteView plaintext, Byte
 
 Bytes aes_gcm_decrypt(ByteView key, ByteView nonce, ByteView ciphertext, ByteView tag,
                       ByteView aad) {
+    if (nonce.empty()) throw CryptoError("AES-GCM needs a nonce");
+    if (nonce.size() != 12) {
+        const SymmetricKey handle(ecb_provider(), key);
+        const GcmState state = gcm_start(ecb_encrypt_blocks, handle.get(), nonce);
+        const Block expected = gcm_tag(ecb_encrypt_blocks, handle.get(), state, aad, ciphertext);
+        // Constant-time comparison; a truncated tag compares its prefix, as CNG does.
+        std::uint8_t difference = tag.size() < 12 || tag.size() > 16 ? 1 : 0;
+        for (std::size_t i = 0; i < std::min<std::size_t>(tag.size(), 16); ++i) {
+            difference |= static_cast<std::uint8_t>(expected[i] ^ tag[i]);
+        }
+        if (difference != 0) throw CryptoError("AES-GCM decryption failed: bad key or tag");
+        Bytes out(ciphertext.begin(), ciphertext.end());
+        gcm_ctr(ecb_encrypt_blocks, handle.get(), state.j0, out);
+        return out;
+    }
     const SymmetricKey handle(gcm_provider(), key);
     Bytes out(ciphertext.size());
     BCRYPT_AUTHENTICATED_CIPHER_MODE_INFO info;
