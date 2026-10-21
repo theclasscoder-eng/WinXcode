@@ -189,13 +189,17 @@ TEST_CASE("the workspace builds in the background and reports back", "[ide]") {
                                      line.text.find("cannot find 'Texty'") != std::string::npos;
                           }));
     }
-    SECTION("Run without a device explains itself instead of starting") {
+    SECTION("Run and Export without a device explain themselves instead of starting") {
         if (workspace.devices().empty()) {
-            workspace.start(ide::RunMode::Run);
-            CHECK_FALSE(workspace.running());
-            CHECK(workspace.last_result() == "No device");
-            REQUIRE_FALSE(workspace.build_log().empty());
-            CHECK(workspace.build_log().back().kind == ide::ConsoleLine::Kind::Error);
+            // An exported .ipa is provisioned for a device too.
+            for (const ide::RunMode mode : {ide::RunMode::Run, ide::RunMode::Export}) {
+                workspace.start(mode);
+                CHECK_FALSE(workspace.running());
+                CHECK(workspace.last_result() == "No device");
+                REQUIRE_FALSE(workspace.build_log().empty());
+                CHECK(workspace.build_log().back().kind == ide::ConsoleLine::Kind::Error);
+            }
+            CHECK_FALSE(fs::exists(project / "Hello.ipa"));
         }
     }
     SECTION("settings edited in the inspector are written to xtool.yml") {

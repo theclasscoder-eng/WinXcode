@@ -32,6 +32,24 @@ jobs:
         working-directory: build
         run: cpack -C Release
 
+      - name: Check the package
+        shell: pwsh
+        run: |
+          $zip = Get-ChildItem build/WinXcode-*-win-x64.zip | Select-Object -First 1
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          $archive = [IO.Compression.ZipFile]::OpenRead($zip.FullName)
+          $names = $archive.Entries.FullName
+          $archive.Dispose()
+          $names
+          foreach ($file in 'winx.exe', 'winxcode.exe', 'winx-ld64-shim.exe', 'LICENSE',
+                            'README.md', 'vcruntime140.dll', 'msvcp140.dll') {
+            if ($names -notcontains $file) { throw "$file is missing from $($zip.Name)" }
+          }
+          # Runs from the unpacked zip alone, so the bundled runtime is enough.
+          Expand-Archive $zip.FullName -DestinationPath build/package-check -Force
+          & build/package-check/winx.exe --version
+          if ($LASTEXITCODE -ne 0) { throw "winx.exe --version exited with $LASTEXITCODE" }
+
       - uses: actions/upload-artifact@v4
         with:
           name: WinXcode-win-x64
